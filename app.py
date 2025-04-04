@@ -9,7 +9,7 @@ import os
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Calculadora FGR",
+    page_title="Calculadora FGR - Residuos de Construcción",
     page_icon="🏗️",
     layout="wide"
 )

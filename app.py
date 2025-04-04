@@ -138,12 +138,25 @@ def main():
     # Inicializar el estado de la sesión
     if 'proyectos' not in st.session_state:
         st.session_state.proyectos = cargar_datos()
+    
+    # Inicializar otras variables de estado
+    if 'tipos_residuos_temp' not in st.session_state:
+        st.session_state.tipos_residuos_temp = []
+    if 'residuos_temp' not in st.session_state:
+        st.session_state.residuos_temp = {}
+    if 'confirmar_eliminar_proyecto' not in st.session_state:
+        st.session_state.confirmar_eliminar_proyecto = False
+    if 'confirmar_limpieza' not in st.session_state:
+        st.session_state.confirmar_limpieza = False
+    if 'agregar_residuo' not in st.session_state:
+        st.session_state.agregar_residuo = False
 
     # Mostrar usuario actual y botón de cerrar sesión
-    st.sidebar.markdown(f"**Usuario actual:** {st.session_state.username}")
-    if st.sidebar.button("Cerrar Sesión"):
+    st.sidebar.markdown(f"👤 **{st.session_state.username}**")
+    if st.sidebar.button("🚪", help="Cerrar Sesión", key="btn_logout"):
         del st.session_state.username
         st.rerun()
+    st.markdown("---")
 
     st.title("Seguimiento de Factor de Generación de Residuos (FGR)")
     st.markdown("""
@@ -156,417 +169,608 @@ def main():
 
     # Sidebar para selección de proyecto
     st.sidebar.title("Gestión de Proyectos")
-    
-    # Formulario para nuevo proyecto
-    st.sidebar.subheader("Crear Nuevo Proyecto")
-    
-    # Campos principales fuera del formulario
-    nombre_proyecto = st.sidebar.text_input("Nombre del Proyecto")
-    area_total = st.sidebar.number_input("Área Total a Construir (m²)", min_value=0.0)
-    
-    # Configuración de tipos de residuos
-    st.sidebar.subheader("Configuración de Tipos de Residuos")
-    st.sidebar.write("Define los tipos de residuos que se podrán registrar en este proyecto")
-    
-    # Inicializar lista temporal de residuos en session_state si no existe
-    if 'tipos_residuos_temp' not in st.session_state:
-        st.session_state.tipos_residuos_temp = []
-    
-    # Campo para agregar nuevo tipo de residuo
-    col1, col2 = st.sidebar.columns([2, 1])
-    with col1:
-        nuevo_tipo = st.text_input("Nuevo tipo de residuo", key="nuevo_tipo")
-    with col2:
-        if st.button("Agregar", key="btn_agregar_tipo"):
-            if nuevo_tipo:
-                if nuevo_tipo not in st.session_state.tipos_residuos_temp:
-                    st.session_state.tipos_residuos_temp.append(nuevo_tipo)
-                else:
-                    st.sidebar.error("Este tipo de residuo ya existe")
-    
-    # Mostrar tipos de residuos agregados
-    if st.session_state.tipos_residuos_temp:
-        st.sidebar.write("Tipos de residuos configurados:")
-        for i, tipo in enumerate(st.session_state.tipos_residuos_temp):
-            col1, col2 = st.sidebar.columns([3, 1])
-            with col1:
-                st.write(f"- {tipo}")
-            with col2:
-                if st.button("🗑️", key=f"del_tipo_{i}"):
-                    st.session_state.tipos_residuos_temp.remove(tipo)
-                    st.rerun()
-    
-    # Botón para crear proyecto
-    if st.sidebar.button("Crear Proyecto", key="btn_crear_proyecto"):
-        if nombre_proyecto and area_total > 0 and st.session_state.tipos_residuos_temp:
-            if crear_proyecto(nombre_proyecto, area_total, st.session_state.tipos_residuos_temp):
-                st.sidebar.success(f"¡Proyecto '{nombre_proyecto}' creado exitosamente!")
-                st.rerun()
-            else:
-                st.sidebar.error("Ya existe un proyecto con ese nombre")
-        else:
-            st.sidebar.error("Por favor, completa todos los campos y agrega al menos un tipo de residuo")
 
-    # Selector de proyecto y opciones de gestión
+    # Selector de proyecto existente (si hay proyectos)
     if st.session_state.proyectos:
-        st.sidebar.subheader("Gestión de Proyectos")
-        
-        # Crear dos columnas en el sidebar para el selector y el botón de eliminar
+        st.sidebar.subheader("📋 Proyectos Existentes")
         col1, col2 = st.sidebar.columns([3, 1])
-        
         with col1:
             proyecto_actual = st.selectbox(
                 "Seleccionar Proyecto",
-                options=list(st.session_state.proyectos.keys())
+                options=list(st.session_state.proyectos.keys()),
+                format_func=lambda x: f"📊 {x}"
             )
-        
         with col2:
             if st.button("🗑️", key="btn_eliminar_proyecto", help="Eliminar proyecto"):
                 st.session_state.confirmar_eliminar_proyecto = True
+
+    # Separador visual
+    st.sidebar.markdown("---")
+
+    # Sección de nuevo proyecto
+    with st.sidebar.expander("➕ Crear Nuevo Proyecto", expanded=not bool(st.session_state.proyectos)):
+        st.markdown("### Datos del Proyecto")
+        nombre_proyecto = st.text_input("📝 Nombre del Proyecto")
+        area_total = st.number_input("📐 Área Total (m²)", min_value=0.0)
         
-        # Confirmación para eliminar proyecto
-        if st.session_state.get('confirmar_eliminar_proyecto', False):
-            st.sidebar.warning("⚠️ ¿Estás seguro de eliminar este proyecto? Esta acción no se puede deshacer.")
-            col1, col2 = st.sidebar.columns(2)
-            with col1:
-                if st.button("Sí, eliminar", key="confirmar_eliminar"):
-                    del st.session_state.proyectos[proyecto_actual]
-                    guardar_datos(st.session_state.proyectos)
-                    st.session_state.confirmar_eliminar_proyecto = False
-                    st.rerun()
-            with col2:
-                if st.button("Cancelar", key="cancelar_eliminar"):
-                    st.session_state.confirmar_eliminar_proyecto = False
-                    st.rerun()
-        
-        # Obtener último avance registrado
-        ultimo_avance = obtener_ultimo_avance(st.session_state.proyectos[proyecto_actual]["registros"])
-        area_total = st.session_state.proyectos[proyecto_actual]["area_total"]
-        
-        # Mostrar información del proyecto
-        st.subheader(f"Proyecto: {proyecto_actual}")
-        col1, col2 = st.columns(2)
+        st.markdown("### Tipos de Residuos")
+        col1, col2 = st.columns([2, 1])
         with col1:
-            st.info(f"Área total a construir: {area_total:,.2f} m²")
+            nuevo_tipo = st.text_input("🏗️ Nuevo tipo", key="nuevo_tipo")
         with col2:
-            st.info(f"Avance actual: {ultimo_avance:.1f}%")
+            if st.button("➕", key="btn_agregar_tipo", help="Agregar tipo de residuo"):
+                if nuevo_tipo:
+                    if nuevo_tipo not in st.session_state.tipos_residuos_temp:
+                        st.session_state.tipos_residuos_temp.append(nuevo_tipo)
+                    else:
+                        st.error("Ya existe")
         
-        # Formulario para nuevo registro
-        st.subheader("Registro de Avance")
+        if st.session_state.tipos_residuos_temp:
+            st.markdown("#### Tipos configurados:")
+            for i, tipo in enumerate(st.session_state.tipos_residuos_temp):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"• {tipo}")
+                with col2:
+                    if st.button("✖️", key=f"del_tipo_{i}", help=f"Eliminar {tipo}"):
+                        st.session_state.tipos_residuos_temp.remove(tipo)
+                        st.rerun()
         
-        # Campos de fecha y porcentaje (fuera del formulario)
+        if st.button("💾 Crear Proyecto", key="btn_crear_proyecto", use_container_width=True):
+            if nombre_proyecto and area_total > 0 and st.session_state.tipos_residuos_temp:
+                if crear_proyecto(nombre_proyecto, area_total, st.session_state.tipos_residuos_temp):
+                    st.success("¡Proyecto creado!")
+                    st.session_state.tipos_residuos_temp = []
+                    st.rerun()
+                else:
+                    st.error("Ya existe un proyecto con ese nombre")
+            else:
+                st.error("Complete todos los campos")
+
+    # Obtener último avance registrado
+    ultimo_avance = obtener_ultimo_avance(st.session_state.proyectos[proyecto_actual]["registros"])
+    area_total = st.session_state.proyectos[proyecto_actual]["area_total"]
+    
+    # Mostrar información del proyecto
+    st.subheader(f"Proyecto: {proyecto_actual}")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"Área total a construir: {area_total:,.2f} m²")
+    with col2:
+        st.info(f"Avance actual: {ultimo_avance:.1f}%")
+    
+    # Formulario de registro
+    with st.expander("📝 Nuevo Registro de Avance", expanded=not bool(st.session_state.proyectos[proyecto_actual]["registros"])):
+        st.markdown("### Datos del Avance")
+        
+        # Campos de fecha y porcentaje
         col1, col2 = st.columns(2)
-        
         with col1:
-            fecha_registro = st.date_input("Fecha de Registro")
-            nuevo_porcentaje = st.number_input(
-                "Porcentaje de Avance (%)",
-                min_value=float(ultimo_avance),
-                max_value=100.0,
-                value=float(ultimo_avance),
-                step=0.1
+            fecha_registro = st.date_input(
+                "📅 Fecha",
+                help="Fecha del registro de avance"
             )
             
         with col2:
-            if nuevo_porcentaje > ultimo_avance:
+            nuevo_porcentaje = st.number_input(
+                "📊 Avance (%)",
+                min_value=float(ultimo_avance),
+                max_value=100.0,
+                value=float(ultimo_avance),
+                step=0.1,
+                help="Porcentaje de avance acumulado"
+            )
+        
+        if nuevo_porcentaje > ultimo_avance:
+            # Mostrar información del incremento
+            col1, col2 = st.columns(2)
+            with col1:
                 incremento = nuevo_porcentaje - ultimo_avance
-                area_periodo = calcular_area_periodo(area_total, nuevo_porcentaje, ultimo_avance)
-                st.write(f"Incremento de avance: {incremento:.1f}%")
-                st.write(f"Área a registrar en este período: {area_periodo:,.2f} m²")
-        
-        # Registro de residuos
-        st.subheader("Registro de Residuos")
-        tipos_residuos = st.session_state.proyectos[proyecto_actual]["tipos_residuos"]
-        
-        if "residuos_temp" not in st.session_state:
-            st.session_state.residuos_temp = {}
-        
-        # Botón para agregar nuevo residuo
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            if st.button("Agregar Residuo", key="btn_agregar_residuo"):
-                st.session_state.agregar_residuo = True
-        
-        # Formulario para agregar residuo
-        if st.session_state.get('agregar_residuo', False):
+                st.info(f"⬆️ Incremento: {incremento:.1f}%")
             with col2:
-                tipo_residuo = st.selectbox("Tipo de Residuo", options=tipos_residuos)
-                volumen = st.number_input("Volumen (m³)", min_value=0.0)
-                
-                if st.button("Guardar Residuo", key="btn_guardar_residuo"):
-                    if agregar_residuo(tipo_residuo, volumen):
-                        st.success("¡Residuo agregado exitosamente!")
+                area_periodo = calcular_area_periodo(area_total, nuevo_porcentaje, ultimo_avance)
+                st.info(f"📏 Área del período: {area_periodo:,.2f} m²")
+            
+            # Sección de residuos
+            st.markdown("### Registro de Residuos")
+            
+            # Agregar nuevo residuo
+            col1, col2, col3 = st.columns([2,1,1])
+            with col1:
+                tipo_residuo = st.selectbox(
+                    "🏗️ Tipo de Residuo",
+                    options=st.session_state.proyectos[proyecto_actual]["tipos_residuos"],
+                    key="select_tipo_residuo"
+                )
+            with col2:
+                volumen = st.number_input(
+                    "📦 Volumen (m³)",
+                    min_value=0.0,
+                    step=0.1,
+                    key="input_volumen"
+                )
+            with col3:
+                if st.button("➕ Agregar", key="btn_add_residuo", use_container_width=True):
+                    if volumen > 0:
+                        st.session_state.residuos_temp[tipo_residuo] = volumen
+                        st.success(f"✅ {tipo_residuo} agregado")
                         st.rerun()
                     else:
-                        st.error("El volumen debe ser mayor a 0")
-        
-        # Mostrar residuos agregados
-        if st.session_state.residuos_temp:
-            st.write("Residuos registrados en este período:")
-            for tipo, volumen in st.session_state.residuos_temp.items():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.write(f"**{tipo}**")
-                with col2:
-                    st.write(f"{volumen:.2f} m³")
-                with col3:
-                    if st.button("Eliminar", key=f"del_{tipo}"):
-                        if eliminar_residuo(tipo):
-                            st.success("¡Residuo eliminado exitosamente!")
+                        st.error("❌ Volumen debe ser > 0")
+            
+            # Mostrar residuos agregados
+            if st.session_state.residuos_temp:
+                st.markdown("#### Residuos Registrados")
+                for tipo, volumen in st.session_state.residuos_temp.items():
+                    col1, col2, col3 = st.columns([2,1,1])
+                    with col1:
+                        st.write(f"**{tipo}**")
+                    with col2:
+                        st.write(f"{volumen:.2f} m³")
+                    with col3:
+                        if st.button("🗑️", key=f"del_{tipo}", help=f"Eliminar {tipo}"):
+                            del st.session_state.residuos_temp[tipo]
                             st.rerun()
-        
-        # Mostrar el total de residuos calculado
-        total_desglosado = sum(st.session_state.residuos_temp.values())
-        if total_desglosado > 0:
-            st.info(f"Volumen total de residuos: {total_desglosado:.2f} m³")
-            if nuevo_porcentaje > ultimo_avance:
-                area_periodo = calcular_area_periodo(area_total, nuevo_porcentaje, ultimo_avance)
-                fgr_periodo = calcular_fgr(total_desglosado, area_periodo)
-                st.write(f"FGR del período: {fgr_periodo:.3f} m³/m²")
-        
-        # Botón para registrar avance
-        if st.button("Registrar Avance", key="btn_registrar_avance"):
-            if nuevo_porcentaje <= ultimo_avance:
-                st.error("El porcentaje de avance debe ser mayor al último registrado")
-            elif nuevo_porcentaje > 100:
-                st.error("El porcentaje de avance no puede ser mayor a 100%")
-            elif not st.session_state.residuos_temp:
-                st.error("Debe registrar al menos un tipo de residuo")
-            else:
-                area_periodo = calcular_area_periodo(area_total, nuevo_porcentaje, ultimo_avance)
-                fgr_periodo = calcular_fgr(total_desglosado, area_periodo)
                 
-                nuevo_registro = {
-                    "fecha": fecha_registro.isoformat(),
-                    "porcentaje_avance": nuevo_porcentaje,
-                    "incremento_porcentaje": nuevo_porcentaje - ultimo_avance,
-                    "area_periodo": area_periodo,
-                    "residuos_periodo": total_desglosado,
-                    "tipos_residuos": dict(st.session_state.residuos_temp),
-                    "fgr_periodo": fgr_periodo
-                }
-                
-                st.session_state.proyectos[proyecto_actual]["registros"].append(nuevo_registro)
-                st.session_state.proyectos[proyecto_actual]["registros"].sort(key=lambda x: x["fecha"])
-                st.session_state.residuos_temp = {}  # Limpiar residuos temporales
-                guardar_datos(st.session_state.proyectos)
-                st.success("¡Registro agregado exitosamente!")
-                st.rerun()
-
-        # Visualización de datos
-        if st.session_state.proyectos[proyecto_actual]["registros"]:
-            st.subheader("Análisis de Datos")
-            
-            # Convertir registros a DataFrame asegurando que todas las columnas existan
-            registros = st.session_state.proyectos[proyecto_actual]["registros"]
-            
-            # Asegurar que todos los registros tengan los campos necesarios
-            for registro in registros:
-                if "area_periodo" not in registro:
-                    registro["area_periodo"] = calcular_area_periodo(
-                        area_total,
-                        registro["porcentaje_avance"],
-                        registro.get("porcentaje_avance", 0) - registro.get("incremento_porcentaje", 0)
-                    )
-            
-            # Crear DataFrame con columnas explícitas
-            df = pd.DataFrame(registros)
-            required_columns = [
-                'fecha', 'porcentaje_avance', 'incremento_porcentaje',
-                'area_periodo', 'residuos_periodo', 'fgr_periodo'
-            ]
-            
-            # Inicializar columnas faltantes con 0
-            for col in required_columns:
-                if col not in df.columns:
-                    df[col] = 0.0
-            
-            df['fecha'] = pd.to_datetime(df['fecha'])
-            
-            # Calcular acumulados solo si hay datos
-            if not df.empty:
-                df['area_acumulada'] = df['area_periodo'].cumsum()
-                df['residuos_acumulados'] = df['residuos_periodo'].cumsum()
-                df['fgr_acumulado'] = df['residuos_acumulados'] / df['area_acumulada'].replace(0, np.inf)
-            
-            # Gráficos
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Gráfico de FGR por período y acumulado
-                fig_fgr = go.Figure()
-                fig_fgr.add_trace(go.Scatter(
-                    x=df['fecha'],
-                    y=df['fgr_periodo'],
-                    mode='lines+markers',
-                    name='FGR por Período'
-                ))
-                fig_fgr.add_trace(go.Scatter(
-                    x=df['fecha'],
-                    y=df['fgr_acumulado'],
-                    mode='lines+markers',
-                    name='FGR Acumulado'
-                ))
-                fig_fgr.update_layout(
-                    title='FGR por Período y Acumulado',
-                    xaxis_title='Fecha',
-                    yaxis_title='FGR (m³/m²)'
-                )
-                st.plotly_chart(fig_fgr, use_container_width=True)
-            
-            with col2:
-                # Gráfico de avance y área construida
-                fig_avance = go.Figure()
-                
-                # Barra para área construida (eje izquierdo)
-                fig_avance.add_trace(go.Bar(
-                    x=df['fecha'],
-                    y=df['area_periodo'],
-                    name='Área Construida por Período (m²)',
-                    yaxis='y'
-                ))
-                
-                # Línea para porcentaje de avance (eje derecho)
-                fig_avance.add_trace(go.Scatter(
-                    x=df['fecha'],
-                    y=df['porcentaje_avance'],
-                    mode='lines+markers',
-                    name='Avance (%)',
-                    yaxis='y2'
-                ))
-                
-                # Configuración del layout con dos ejes Y
-                fig_avance.update_layout(
-                    title='Avance y Área Construida',
-                    xaxis_title='Fecha',
-                    yaxis=dict(
-                        title='Área Construida por Período (m²)',
-                        side='left'
-                    ),
-                    yaxis2=dict(
-                        title='Avance (%)',
-                        side='right',
-                        overlaying='y',
-                        range=[0, 100]  # Fija el rango del eje derecho de 0 a 100%
-                    )
-                )
-                st.plotly_chart(fig_avance, use_container_width=True)
-            
-            # Gráfico de residuos por tipo
-            residuos_por_tipo = pd.DataFrame()
-            total_por_tipo = {}
-            
-            for registro in st.session_state.proyectos[proyecto_actual]["registros"]:
-                for tipo, volumen in registro['tipos_residuos'].items():
-                    if tipo not in residuos_por_tipo.columns:
-                        residuos_por_tipo[tipo] = 0
-                        total_por_tipo[tipo] = 0
-                    residuos_por_tipo.loc[registro['fecha'], tipo] = volumen
-                    total_por_tipo[tipo] += volumen
-            
-            if not residuos_por_tipo.empty:
-                # Gráfico de barras por fecha
-                fig_residuos = px.bar(
-                    residuos_por_tipo,
-                    title='Residuos por Tipo y Fecha',
-                    labels={'value': 'Volumen (m³)', 'index': 'Fecha'}
-                )
-                st.plotly_chart(fig_residuos, use_container_width=True)
-                
-                # Nuevo gráfico de pie para distribución total
+                # Mostrar totales
+                total_desglosado = sum(st.session_state.residuos_temp.values())
                 col1, col2 = st.columns(2)
                 with col1:
-                    fig_pie = go.Figure(data=[go.Pie(
-                        labels=list(total_por_tipo.keys()),
-                        values=list(total_por_tipo.values()),
-                        hole=.3
-                    )])
-                    fig_pie.update_layout(
-                        title='Distribución Total de Residuos',
-                        annotations=[dict(text=f'Total: {sum(total_por_tipo.values()):.1f} m³', x=0.5, y=0.5, font_size=12, showarrow=False)]
-                    )
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                
+                    st.info(f"📦 Total residuos: {total_desglosado:.2f} m³")
                 with col2:
-                    # Tabla de totales por tipo
-                    st.subheader("Total por Tipo de Residuo")
-                    df_totales = pd.DataFrame(list(total_por_tipo.items()), columns=['Tipo', 'Volumen (m³)'])
-                    df_totales['Porcentaje'] = df_totales['Volumen (m³)'] / df_totales['Volumen (m³)'].sum() * 100
-                    df_totales = df_totales.sort_values('Volumen (m³)', ascending=False)
-                    df_totales['Volumen (m³)'] = df_totales['Volumen (m³)'].round(2)
-                    df_totales['Porcentaje'] = df_totales['Porcentaje'].round(1)
-                    st.dataframe(df_totales, use_container_width=True)
+                    if area_periodo > 0:
+                        fgr_periodo = calcular_fgr(total_desglosado, area_periodo)
+                        st.info(f"📊 FGR período: {fgr_periodo:.3f} m³/m²")
             
-            # Estadísticas
-            st.subheader("Estadísticas del Proyecto")
+            # Botón de registro
+            if st.button("💾 Registrar Avance", key="btn_registrar", use_container_width=True):
+                if nuevo_porcentaje <= ultimo_avance:
+                    st.error("❌ El avance debe ser mayor al último registrado")
+                elif nuevo_porcentaje > 100:
+                    st.error("❌ El avance no puede superar 100%")
+                elif not st.session_state.residuos_temp:
+                    st.error("❌ Debe registrar al menos un residuo")
+                else:
+                    area_periodo = calcular_area_periodo(area_total, nuevo_porcentaje, ultimo_avance)
+                    fgr_periodo = calcular_fgr(total_desglosado, area_periodo)
+                    
+                    nuevo_registro = {
+                        "fecha": fecha_registro.isoformat(),
+                        "porcentaje_avance": nuevo_porcentaje,
+                        "incremento_porcentaje": nuevo_porcentaje - ultimo_avance,
+                        "area_periodo": area_periodo,
+                        "residuos_periodo": total_desglosado,
+                        "tipos_residuos": dict(st.session_state.residuos_temp),
+                        "fgr_periodo": fgr_periodo
+                    }
+                    
+                    st.session_state.proyectos[proyecto_actual]["registros"].append(nuevo_registro)
+                    st.session_state.proyectos[proyecto_actual]["registros"].sort(key=lambda x: x["fecha"])
+                    st.session_state.residuos_temp = {}
+                    guardar_datos(st.session_state.proyectos)
+                    st.success("✅ ¡Registro agregado exitosamente!")
+                    st.rerun()
+        else:
+            st.warning("⚠️ El porcentaje de avance debe ser mayor al último registrado")
+
+    # Visualización de datos
+    if st.session_state.proyectos[proyecto_actual]["registros"]:
+        # Procesar registros para crear DataFrame
+        registros = st.session_state.proyectos[proyecto_actual]["registros"]
+        df = procesar_dataframe(registros, area_total)
+        
+        # Preparar DataFrame para visualización
+        df_display = pd.DataFrame({
+            'Fecha': df['fecha'].dt.strftime('%Y-%m-%d'),
+            'Avance (%)': df['porcentaje_avance'],
+            'Incremento (%)': df['incremento_porcentaje'],
+            'Área del Período (m²)': df['area_periodo'].round(2),
+            'Área Acumulada (m²)': df['area_acumulada'].round(2),
+            'Residuos del Período (m³)': df['residuos_periodo'].round(2),
+            'Residuos Acumulados (m³)': df['residuos_acumulados'].round(2),
+            'FGR del Período (m³/m²)': df['fgr_periodo'].round(3),
+            'FGR Acumulado (m³/m²)': df['fgr_acumulado'].round(3)
+        })
+        
+        # Procesar datos de residuos por tipo
+        residuos_por_tipo = pd.DataFrame()
+        total_por_tipo = {}
+        
+        for registro in registros:
+            for tipo, volumen in registro['tipos_residuos'].items():
+                if tipo not in residuos_por_tipo.columns:
+                    residuos_por_tipo[tipo] = 0
+                    total_por_tipo[tipo] = 0
+                residuos_por_tipo.loc[registro['fecha'], tipo] = volumen
+                total_por_tipo[tipo] += volumen
+        
+        # Crear tabs para organizar la información
+        tab1, tab2, tab3 = st.tabs(["📊 Gráficos", "📈 Estadísticas", "📋 Registros"])
+        
+        with tab1:
+            # Gráficos principales
+            st.markdown("### Gráficos de Seguimiento")
+            
+            # Gráfico de FGR
+            fig_fgr = go.Figure()
+            fig_fgr.add_trace(go.Scatter(
+                x=df['fecha'],
+                y=df['fgr_periodo'],
+                mode='lines+markers',
+                name='FGR por Período',
+                hovertemplate='<b>Fecha:</b> %{x|%Y-%m-%d}<br>' +
+                              '<b>FGR:</b> %{y:.3f} m³/m²<br>' +
+                              '<extra></extra>'
+            ))
+            fig_fgr.add_trace(go.Scatter(
+                x=df['fecha'],
+                y=df['fgr_acumulado'],
+                mode='lines+markers',
+                name='FGR Acumulado',
+                hovertemplate='<b>Fecha:</b> %{x|%Y-%m-%d}<br>' +
+                              '<b>FGR Acumulado:</b> %{y:.3f} m³/m²<br>' +
+                              '<extra></extra>'
+            ))
+            fig_fgr.update_layout(
+                title='Factor de Generación de Residuos (FGR)',
+                xaxis_title='Fecha',
+                yaxis_title='FGR (m³/m²)',
+                height=450,
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                hoverlabel=dict(
+                    bgcolor="white",
+                    font_size=14,
+                    font_family="Arial"
+                )
+            )
+            st.plotly_chart(fig_fgr, use_container_width=True)
+            
+            # Gráfico de avance
+            fig_avance = go.Figure()
+            
+            # Barra para área construida (eje izquierdo)
+            fig_avance.add_trace(go.Bar(
+                x=df['fecha'],
+                y=df['area_periodo'],
+                name='Área Construida por Período',
+                yaxis='y',
+                hovertemplate='<b>Fecha:</b> %{x|%Y-%m-%d}<br>' +
+                              '<b>Área Construida:</b> %{y:,.1f} m²<br>' +
+                              '<extra></extra>'
+            ))
+            
+            # Línea para porcentaje de avance (eje derecho)
+            fig_avance.add_trace(go.Scatter(
+                x=df['fecha'],
+                y=df['porcentaje_avance'],
+                mode='lines+markers',
+                name='Avance',
+                yaxis='y2',
+                hovertemplate='<b>Fecha:</b> %{x|%Y-%m-%d}<br>' +
+                              '<b>Avance Total:</b> %{y:.1f}%<br>' +
+                              '<extra></extra>'
+            ))
+            
+            # Configuración del layout con dos ejes Y
+            fig_avance.update_layout(
+                title='Progreso de Construcción',
+                xaxis_title='Fecha',
+                yaxis=dict(
+                    title='Área Construida por Período (m²)',
+                    side='left'
+                ),
+                yaxis2=dict(
+                    title='Avance (%)',
+                    side='right',
+                    overlaying='y',
+                    range=[0, 100]
+                ),
+                height=450,
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                hoverlabel=dict(
+                    bgcolor="white",
+                    font_size=14,
+                    font_family="Arial"
+                )
+            )
+            st.plotly_chart(fig_avance, use_container_width=True)
+            
+            # Gráficos de residuos
+            st.markdown("### Análisis de Residuos")
+            
+            # Gráfico de barras
+            fig_residuos = go.Figure()
+            for columna in residuos_por_tipo.columns:
+                fig_residuos.add_trace(go.Bar(
+                    x=residuos_por_tipo.index,
+                    y=residuos_por_tipo[columna],
+                    name=columna,
+                    hovertemplate='<b>Fecha:</b> %{x|%Y-%m-%d}<br>' +
+                                  f'<b>Tipo:</b> {columna}<br>' +
+                                  '<b>Volumen:</b> %{y:.1f} m³<br>' +
+                                  '<extra></extra>'
+                ))
+            
+            fig_residuos.update_layout(
+                title='Volumen de Residuos por Tipo',
+                xaxis_title='Fecha',
+                yaxis_title='Volumen (m³)',
+                height=450,
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                hoverlabel=dict(
+                    bgcolor="white",
+                    font_size=14,
+                    font_family="Arial"
+                ),
+                barmode='group'
+            )
+            st.plotly_chart(fig_residuos, use_container_width=True)
+            
+            # Gráfico de pie
+            total_residuos = sum(total_por_tipo.values())
+            fig_pie = go.Figure(data=[go.Pie(
+                labels=list(total_por_tipo.keys()),
+                values=list(total_por_tipo.values()),
+                hole=.3,
+                hovertemplate='<b>Tipo:</b> %{label}<br>' +
+                              '<b>Volumen:</b> %{value:.1f} m³<br>' +
+                              '<b>Porcentaje:</b> %{percent:.1%}<br>' +
+                              '<extra></extra>'
+            )])
+            fig_pie.update_layout(
+                title=f'Distribución Total de Residuos (Total: {total_residuos:.1f} m³)',
+                height=450,
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                hoverlabel=dict(
+                    bgcolor="white",
+                    font_size=14,
+                    font_family="Arial"
+                )
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+        
+        with tab2:
+            st.markdown("### Métricas del Proyecto")
+            # Métricas principales
             col1, col2, col3, col4 = st.columns(4)
-            
             with col1:
                 st.metric(
-                    "Avance Total",
-                    f"{df['porcentaje_avance'].iloc[-1]:.1f}%"
+                    "🏗️ Avance",
+                    f"{df['porcentaje_avance'].iloc[-1]:.1f}%",
+                    f"{df['incremento_porcentaje'].iloc[-1]:+.1f}%"
                 )
             with col2:
                 st.metric(
-                    "Área Total Construida",
-                    f"{df['area_acumulada'].iloc[-1]:,.1f} m²"
+                    "📏 Área Construida",
+                    f"{df['area_acumulada'].iloc[-1]:,.1f} m²",
+                    f"{df['area_periodo'].iloc[-1]:+,.1f} m²"
                 )
             with col3:
                 st.metric(
-                    "FGR Promedio",
+                    "📊 FGR Promedio",
                     f"{df['fgr_periodo'].mean():.3f} m³/m²"
                 )
             with col4:
                 st.metric(
-                    "FGR Total",
+                    "📈 FGR Total",
                     f"{df['fgr_acumulado'].iloc[-1]:.3f} m³/m²"
                 )
             
-            # Tabla de registros
-            st.subheader("Registros del Proyecto")
-            
-            # Preparar DataFrame para visualización
-            df_display = pd.DataFrame({
-                'Fecha': df['fecha'].dt.strftime('%Y-%m-%d'),
-                'Avance (%)': df['porcentaje_avance'],
-                'Incremento (%)': df['incremento_porcentaje'],
-                'Área del Período (m²)': df['area_periodo'].round(2),
-                'Área Acumulada (m²)': df['area_acumulada'].round(2),
-                'Residuos del Período (m³)': df['residuos_periodo'].round(2),
-                'Residuos Acumulados (m³)': df['residuos_acumulados'].round(2),
-                'FGR del Período (m³/m²)': df['fgr_periodo'].round(3),
-                'FGR Acumulado (m³/m²)': df['fgr_acumulado'].round(3)
-            })
-            
-            st.dataframe(df_display, use_container_width=True)
-            
-            # Botón para exportar datos
-            if st.button("Exportar Datos a CSV"):
-                df_display.to_csv(f"{proyecto_actual}_registros.csv", index=False)
-                st.success("Datos exportados exitosamente!")
-            
-            # Botón para limpiar registros
-            st.subheader("Limpiar Registros")
-            st.warning("⚠️ Esta acción eliminará todos los registros del proyecto actual.")
-            
-            col1, col2 = st.columns([1, 3])
+            # Tabla de totales
+            st.markdown("### Resumen por Tipo de Residuo")
+            df_totales = pd.DataFrame(list(total_por_tipo.items()), columns=['Tipo', 'Volumen (m³)'])
+            df_totales['Porcentaje'] = df_totales['Volumen (m³)'] / df_totales['Volumen (m³)'].sum() * 100
+            df_totales = df_totales.sort_values('Volumen (m³)', ascending=False)
+            df_totales['Volumen (m³)'] = df_totales['Volumen (m³)'].round(2)
+            df_totales['Porcentaje'] = df_totales['Porcentaje'].round(1)
+            st.dataframe(df_totales, use_container_width=True)
+        
+        with tab3:
+            st.markdown("### Historial de Registros")
+            # Agregar filtros
+            col1, col2 = st.columns(2)
             with col1:
-                if st.button("Limpiar Registros", key="btn_limpiar"):
-                    if st.session_state.proyectos[proyecto_actual]["registros"]:
-                        st.session_state.confirmar_limpieza = True
-                    else:
-                        st.info("No hay registros para limpiar.")
+                fecha_inicio = st.date_input("Desde", value=df['fecha'].min())
+            with col2:
+                fecha_fin = st.date_input("Hasta", value=df['fecha'].max())
             
-            if st.session_state.get('confirmar_limpieza', False):
-                with col2:
-                    st.error("¿Estás seguro? Esta acción no se puede deshacer.")
-                    if st.button("Sí, eliminar todos los registros", key="btn_confirmar"):
+            # Filtrar DataFrame
+            mask = (df['fecha'].dt.date >= fecha_inicio) & (df['fecha'].dt.date <= fecha_fin)
+            df_filtered = df_display[mask].copy()
+            
+            # Convertir la columna Fecha a datetime
+            df_filtered['Fecha'] = pd.to_datetime(df_filtered['Fecha'])
+            
+            # Configurar el editor de datos
+            st.markdown("#### Editar Registros")
+            st.info("📝 Haz doble clic en una celda para editarla. Los cambios se guardarán automáticamente.")
+            
+            edited_df = st.data_editor(
+                df_filtered,
+                use_container_width=True,
+                column_config={
+                    "Fecha": st.column_config.DateColumn(
+                        "Fecha 📅",
+                        help="Fecha del registro (no editable)",
+                        format="YYYY-MM-DD",
+                        required=True,
+                        disabled=True
+                    ),
+                    "Avance (%)": st.column_config.NumberColumn(
+                        "Avance (%) 📊",
+                        help="Porcentaje de avance acumulado",
+                        min_value=0,
+                        max_value=100,
+                        step=0.1,
+                        format="%.1f"
+                    ),
+                    "Incremento (%)": st.column_config.NumberColumn(
+                        "⬆️ Incremento (%)",
+                        help="Incremento respecto al registro anterior (calculado automáticamente)",
+                        format="%.1f",
+                        disabled=True
+                    ),
+                    "Área del Período (m²)": st.column_config.NumberColumn(
+                        "📏 Área del Período (m²)",
+                        help="Área construida en este período (calculado automáticamente)",
+                        format="%.2f",
+                        disabled=True
+                    ),
+                    "Área Acumulada (m²)": st.column_config.NumberColumn(
+                        "📈 Área Acumulada (m²)",
+                        help="Área total construida hasta la fecha (calculado automáticamente)",
+                        format="%.2f",
+                        disabled=True
+                    ),
+                    "Residuos del Período (m³)": st.column_config.NumberColumn(
+                        "Residuos (m³) 📦",
+                        help="Volumen de residuos generados en este período",
+                        min_value=0,
+                        format="%.2f"
+                    ),
+                    "Residuos Acumulados (m³)": st.column_config.NumberColumn(
+                        "📊 Residuos Acum. (m³)",
+                        help="Volumen total de residuos hasta la fecha (calculado automáticamente)",
+                        format="%.2f",
+                        disabled=True
+                    ),
+                    "FGR del Período (m³/m²)": st.column_config.NumberColumn(
+                        "📉 FGR Período",
+                        help="Factor de Generación de Residuos del período (calculado automáticamente)",
+                        format="%.3f",
+                        disabled=True
+                    ),
+                    "FGR Acumulado (m³/m²)": st.column_config.NumberColumn(
+                        "📈 FGR Acumulado",
+                        help="Factor de Generación de Residuos acumulado (calculado automáticamente)",
+                        format="%.3f",
+                        disabled=True
+                    )
+                },
+                hide_index=True,
+                key="data_editor",
+                column_order=[
+                    "Fecha",
+                    "Avance (%)",
+                    "Incremento (%)",
+                    "Área del Período (m²)",
+                    "Área Acumulada (m²)",
+                    "Residuos del Período (m³)",
+                    "Residuos Acumulados (m³)",
+                    "FGR del Período (m³/m²)",
+                    "FGR Acumulado (m³/m²)"
+                ]
+            )
+            
+            # Detectar y guardar cambios
+            if not df_filtered.equals(edited_df):
+                # Convertir las fechas a formato ISO
+                registros_actualizados = []
+                for _, row in edited_df.iterrows():
+                    fecha = pd.to_datetime(row['Fecha']).date().isoformat()
+                    porcentaje_avance = float(row['Avance (%)'])
+                    residuos_periodo = float(row['Residuos del Período (m³)'])
+                    
+                    # Buscar el registro original para mantener los tipos de residuos
+                    registro_original = next(
+                        (r for r in registros if r['fecha'] == fecha),
+                        None
+                    )
+                    
+                    if registro_original:
+                        tipos_residuos = registro_original['tipos_residuos']
+                    else:
+                        tipos_residuos = {}
+                    
+                    registro = {
+                        "fecha": fecha,
+                        "porcentaje_avance": porcentaje_avance,
+                        "residuos_periodo": residuos_periodo,
+                        "tipos_residuos": tipos_residuos
+                    }
+                    registros_actualizados.append(registro)
+                
+                # Ordenar registros por fecha
+                registros_actualizados.sort(key=lambda x: x["fecha"])
+                
+                # Actualizar incrementos y calcular áreas y FGR
+                for i in range(len(registros_actualizados)):
+                    # Calcular incremento
+                    if i == 0:
+                        registros_actualizados[i]["incremento_porcentaje"] = registros_actualizados[i]["porcentaje_avance"]
+                    else:
+                        registros_actualizados[i]["incremento_porcentaje"] = (
+                            registros_actualizados[i]["porcentaje_avance"] - 
+                            registros_actualizados[i-1]["porcentaje_avance"]
+                        )
+                    
+                    # Calcular área del período
+                    area_periodo = calcular_area_periodo(
+                        area_total,
+                        registros_actualizados[i]["porcentaje_avance"],
+                        registros_actualizados[i-1]["porcentaje_avance"] if i > 0 else 0
+                    )
+                    registros_actualizados[i]["area_periodo"] = area_periodo
+                    
+                    # Calcular FGR del período
+                    registros_actualizados[i]["fgr_periodo"] = calcular_fgr(
+                        registros_actualizados[i]["residuos_periodo"],
+                        area_periodo
+                    )
+                
+                # Guardar cambios
+                st.session_state.proyectos[proyecto_actual]["registros"] = registros_actualizados
+                guardar_datos(st.session_state.proyectos)
+                st.success("✅ Cambios guardados correctamente")
+                st.rerun()
+            
+            # Botones de acción
+            col1, col2, col3 = st.columns([1,1,2])
+            with col1:
+                if st.button("📥 Exportar CSV"):
+                    edited_df.to_csv(f"{proyecto_actual}_registros.csv", index=False)
+                    st.success("¡Datos exportados!")
+            with col2:
+                if st.button("🗑️ Limpiar Registros"):
+                    st.session_state.confirmar_limpieza = True
+            with col3:
+                if st.session_state.get('confirmar_limpieza', False):
+                    st.error("¿Confirmar eliminación?")
+                    if st.button("✔️ Sí, eliminar", key="btn_confirmar"):
                         st.session_state.proyectos[proyecto_actual]["registros"] = []
                         guardar_datos(st.session_state.proyectos)
                         st.session_state.confirmar_limpieza = False
-                        st.success("¡Todos los registros han sido eliminados!")
+                        st.success("¡Registros eliminados!")
                         st.rerun()
-                    if st.button("Cancelar", key="btn_cancelar"):
+                    if st.button("❌ Cancelar", key="btn_cancelar"):
                         st.session_state.confirmar_limpieza = False
                         st.rerun()
     else:

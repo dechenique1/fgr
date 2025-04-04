@@ -31,11 +31,8 @@ ENV/
 *.swp
 *.swo
 
-# Streamlit
-.streamlit/
-
 # Project specific
-proyectos.json
+user_data/
 *.csv
 
 # OS

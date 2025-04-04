@@ -1,48 +1,56 @@
-# Calculadora de Factor de Generación de Residuos (FGR)
+# Calculadora FGR - Residuos de Construcción
 
-Esta aplicación permite calcular y analizar el Factor de Generación de Residuos (FGR) para proyectos de construcción. El FGR representa la cantidad de residuos generados por metro cuadrado construido (m³/m²).
+Aplicación web para el seguimiento del Factor de Generación de Residuos (FGR) en proyectos de construcción.
 
 ## Características
 
-- Cálculo de FGR para múltiples proyectos
-- Registro de diferentes tipos de residuos
-- Visualización de datos mediante gráficos
-- Estadísticas generales (promedio, máximo, mínimo)
-- Interfaz intuitiva y fácil de usar
+- Sistema de autenticación de usuarios
+- Gestión de múltiples proyectos
+- Seguimiento temporal del FGR
+- Visualización de datos con gráficos interactivos
+- Registro y edición de avances de obra
+- Exportación de datos a CSV
 
-## Instalación
+## Requisitos
 
-1. Clona este repositorio
-2. Instala las dependencias:
+- Python 3.8 o superior
+- Streamlit
+- Pandas
+- Plotly
+- NumPy
+
+## Instalación Local
+
+1. Clonar el repositorio:
+```bash
+git clone <URL_DEL_REPOSITORIO>
+cd <NOMBRE_DEL_DIRECTORIO>
+```
+
+2. Instalar dependencias:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso
-
-Para ejecutar la aplicación:
+3. Ejecutar la aplicación:
 ```bash
 streamlit run app.py
 ```
 
-La aplicación se abrirá en tu navegador web predeterminado.
+## Despliegue en Streamlit Cloud
 
-### Cómo usar la aplicación
+1. Crear una cuenta en [Streamlit Cloud](https://streamlit.io/cloud)
+2. Conectar tu repositorio de GitHub
+3. Desplegar la aplicación seleccionando el archivo `app.py`
 
-1. Ingresa los datos del proyecto:
-   - Nombre del proyecto
-   - Área construida (m²)
-   - Tipo de residuo
-   - Volumen de residuos (m³)
+## Uso
 
-2. Haz clic en "Agregar Proyecto" para guardar los datos
+1. Crear una cuenta o iniciar sesión
+2. Crear un nuevo proyecto especificando área total y tipos de residuos
+3. Registrar avances de obra y volúmenes de residuos
+4. Visualizar estadísticas y gráficos de seguimiento
+5. Exportar datos según sea necesario
 
-3. Visualiza los resultados:
-   - Tabla de proyectos
-   - Gráfico de FGR por proyecto
-   - Gráfico de relación área vs volumen
-   - Estadísticas generales
+## Estructura de Datos
 
-4. Puedes agregar múltiples proyectos y compararlos
-
-5. Usa el botón "Limpiar Todos los Proyectos" para reiniciar 
+Los datos de cada usuario se almacenan en archivos JSON separados en el directorio `user_data/`. 

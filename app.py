@@ -14,6 +14,10 @@ st.set_page_config(
     layout="wide"
 )
 
+# Sistema de autenticación y gestión de usuarios
+# Cada usuario tiene sus propios proyectos almacenados en archivos JSON separados
+# Los datos se guardan en la carpeta user_data con el formato: username_proyectos.json
+
 # Función para obtener la ruta del archivo de datos del usuario
 def get_user_data_path():
     # Obtener el nombre de usuario de la autenticación

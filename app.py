@@ -454,19 +454,48 @@ def main():
             
             # Gráfico de residuos por tipo
             residuos_por_tipo = pd.DataFrame()
+            total_por_tipo = {}
+            
             for registro in st.session_state.proyectos[proyecto_actual]["registros"]:
                 for tipo, volumen in registro['tipos_residuos'].items():
                     if tipo not in residuos_por_tipo.columns:
                         residuos_por_tipo[tipo] = 0
+                        total_por_tipo[tipo] = 0
                     residuos_por_tipo.loc[registro['fecha'], tipo] = volumen
+                    total_por_tipo[tipo] += volumen
             
             if not residuos_por_tipo.empty:
+                # Gráfico de barras por fecha
                 fig_residuos = px.bar(
                     residuos_por_tipo,
-                    title='Residuos por Tipo',
+                    title='Residuos por Tipo y Fecha',
                     labels={'value': 'Volumen (m³)', 'index': 'Fecha'}
                 )
                 st.plotly_chart(fig_residuos, use_container_width=True)
+                
+                # Nuevo gráfico de pie para distribución total
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=list(total_por_tipo.keys()),
+                        values=list(total_por_tipo.values()),
+                        hole=.3
+                    )])
+                    fig_pie.update_layout(
+                        title='Distribución Total de Residuos',
+                        annotations=[dict(text=f'Total: {sum(total_por_tipo.values()):.1f} m³', x=0.5, y=0.5, font_size=12, showarrow=False)]
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                
+                with col2:
+                    # Tabla de totales por tipo
+                    st.subheader("Total por Tipo de Residuo")
+                    df_totales = pd.DataFrame(list(total_por_tipo.items()), columns=['Tipo', 'Volumen (m³)'])
+                    df_totales['Porcentaje'] = df_totales['Volumen (m³)'] / df_totales['Volumen (m³)'].sum() * 100
+                    df_totales = df_totales.sort_values('Volumen (m³)', ascending=False)
+                    df_totales['Volumen (m³)'] = df_totales['Volumen (m³)'].round(2)
+                    df_totales['Porcentaje'] = df_totales['Porcentaje'].round(1)
+                    st.dataframe(df_totales, use_container_width=True)
             
             # Estadísticas
             st.subheader("Estadísticas del Proyecto")

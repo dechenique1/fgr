@@ -10,7 +10,7 @@ import os
 # Configuración de la página
 st.set_page_config(
     page_title="Calculadora FGR - Residuos de Construcción",
-    page_icon="🏗️",
+    page_icon="🏗️",  # Icono de construcción
     layout="wide"
 )
 
@@ -38,6 +38,8 @@ def cargar_datos():
 def guardar_datos(datos):
     with open(get_user_data_path(), 'w') as f:
         json.dump(datos, f)
+    if 'proyectos' in st.session_state:
+        st.session_state.proyectos = datos
 
 # Función para calcular el FGR
 def calcular_fgr(residuos, area):
@@ -83,6 +85,50 @@ def login():
         
         return False
     return True
+
+@st.cache_data
+def procesar_dataframe(registros, area_total):
+    """Procesa los registros y devuelve un DataFrame con cálculos cacheados"""
+    if not registros:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(registros)
+    df['fecha'] = pd.to_datetime(df['fecha'])
+    
+    # Calcular acumulados
+    df['area_acumulada'] = df['area_periodo'].cumsum()
+    df['residuos_acumulados'] = df['residuos_periodo'].cumsum()
+    df['fgr_acumulado'] = df['residuos_acumulados'] / df['area_acumulada'].replace(0, np.inf)
+    
+    return df
+
+# Función para manejar la eliminación de residuos
+def eliminar_residuo(tipo):
+    if tipo in st.session_state.residuos_temp:
+        del st.session_state.residuos_temp[tipo]
+        return True
+    return False
+
+# Función para agregar residuo
+def agregar_residuo(tipo, volumen):
+    if volumen > 0:
+        st.session_state.residuos_temp[tipo] = volumen
+        st.session_state.agregar_residuo = False
+        return True
+    return False
+
+# Función para crear proyecto
+def crear_proyecto(nombre, area, tipos_residuos):
+    if nombre and area > 0 and tipos_residuos:
+        if nombre not in st.session_state.proyectos:
+            st.session_state.proyectos[nombre] = {
+                "area_total": area,
+                "tipos_residuos": tipos_residuos.copy(),
+                "registros": []
+            }
+            guardar_datos(st.session_state.proyectos)
+            return True
+    return False
 
 # Función principal
 def main():
@@ -153,15 +199,7 @@ def main():
     # Botón para crear proyecto
     if st.sidebar.button("Crear Proyecto", key="btn_crear_proyecto"):
         if nombre_proyecto and area_total > 0 and st.session_state.tipos_residuos_temp:
-            if nombre_proyecto not in st.session_state.proyectos:
-                st.session_state.proyectos[nombre_proyecto] = {
-                    "area_total": area_total,
-                    "tipos_residuos": st.session_state.tipos_residuos_temp.copy(),
-                    "registros": []
-                }
-                # Limpiar la lista temporal después de crear el proyecto
-                st.session_state.tipos_residuos_temp = []
-                guardar_datos(st.session_state.proyectos)
+            if crear_proyecto(nombre_proyecto, area_total, st.session_state.tipos_residuos_temp):
                 st.sidebar.success(f"¡Proyecto '{nombre_proyecto}' creado exitosamente!")
                 st.rerun()
             else:
@@ -223,9 +261,10 @@ def main():
             fecha_registro = st.date_input("Fecha de Registro")
             nuevo_porcentaje = st.number_input(
                 "Porcentaje de Avance (%)",
-                min_value=ultimo_avance,
+                min_value=float(ultimo_avance),
                 max_value=100.0,
-                value=ultimo_avance
+                value=float(ultimo_avance),
+                step=0.1
             )
             
         with col2:
@@ -255,9 +294,8 @@ def main():
                 volumen = st.number_input("Volumen (m³)", min_value=0.0)
                 
                 if st.button("Guardar Residuo", key="btn_guardar_residuo"):
-                    if volumen > 0:
-                        st.session_state.residuos_temp[tipo_residuo] = volumen
-                        st.session_state.agregar_residuo = False
+                    if agregar_residuo(tipo_residuo, volumen):
+                        st.success("¡Residuo agregado exitosamente!")
                         st.rerun()
                     else:
                         st.error("El volumen debe ser mayor a 0")
@@ -273,8 +311,9 @@ def main():
                     st.write(f"{volumen:.2f} m³")
                 with col3:
                     if st.button("Eliminar", key=f"del_{tipo}"):
-                        del st.session_state.residuos_temp[tipo]
-                        st.rerun()
+                        if eliminar_residuo(tipo):
+                            st.success("¡Residuo eliminado exitosamente!")
+                            st.rerun()
         
         # Mostrar el total de residuos calculado
         total_desglosado = sum(st.session_state.residuos_temp.values())
